@@ -39,7 +39,7 @@ void setup() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
-  timer.setInterval(300000, updateRadiationValues);
+  timer.setInterval(UPDATE_INTERVAL_SECONDS * 1000L, updateRadiationValues);
 }
 
 void updateRadiationValues() {

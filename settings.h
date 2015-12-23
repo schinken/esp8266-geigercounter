@@ -8,10 +8,15 @@
 
 #define RECV_LINE_SIZE 37
 
-#define PIN_UART_RX 2 // 4
+#define PIN_UART_RX 0 // 4
 #define PIN_UART_TX 13 // UNUSED
 
+#define UPDATE_INTERVAL_SECONDS 300L
+
 #define BAUD_GEIGERCOUNTER 9600
+
+//const char* ssid = "yourSSID";
+//const char* password = "----";
 
 #define MQTT_TOPIC_CPM "sensor/radiation/cpm"
 #define MQTT_TOPIC_USV "sensor/radiation/uSv"
