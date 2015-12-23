@@ -68,6 +68,7 @@ void updateRadiationValues() {
 void connectMqtt() {
 
   bool newConnection = false; 
+
   while (!mqttClient.connected()) {
     mqttClient.setClient(wifiClient);
     mqttClient.setServer(mqttHost, 1883);
@@ -80,11 +81,6 @@ void connectMqtt() {
   if(newConnection) {
     mqttClient.publish(MQTT_TOPIC_LAST_WILL, "connected", true);
   }
-
-}
-
-void updateMqttTopics(int cpm, float uSv) {
-
 
 }
 
