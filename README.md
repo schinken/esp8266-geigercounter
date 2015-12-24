@@ -4,7 +4,7 @@ Here's some code and schematic to connect your mightyohm.com geiger counter to t
 
 ![Schematic](https://raw.githubusercontent.com/b4ckspace/esp8266-geigercounter/master/schematic.png "How to connect")
 
-** If you use the external 3,3 volts, you have to remove the batteries from the geiger counter! **
+**If you use the external 3,3 volts, you have to remove the batteries from the geiger counter!**
 
 ## compile
 
