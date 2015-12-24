@@ -12,7 +12,7 @@ To compile this code, just clone or download the master branch as a zip and ramp
 
 ## settings
 
-For the code to work, you need to adjust the settings in the settings.h file.
+You need to adjust the settings in the settings.h file.
 
 ## license and credits
 
