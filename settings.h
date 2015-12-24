@@ -15,8 +15,8 @@
 
 #define BAUD_GEIGERCOUNTER 9600
 
-//const char* ssid = "yourSSID";
-//const char* password = "----";
+const char* ssid = "yourSSID";
+const char* password = "----";
 
 #define MQTT_TOPIC_CPM "sensor/radiation/cpm"
 #define MQTT_TOPIC_USV "sensor/radiation/uSv"

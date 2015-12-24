@@ -4,7 +4,6 @@
 #include <SimpleTimer.h>
 
 #include "settings.h"
-#include "wifi.h"
 
 WiFiClient wifiClient;
 PubSubClient mqttClient;
