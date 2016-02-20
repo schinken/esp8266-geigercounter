@@ -17,10 +17,12 @@ int lastCPM = 0, currentCPM = 0;
 float lastuSv = 0, currentuSv = 0;
 
 void setup() {
-  
+
+  WiFi.mode(WIFI_STA);
+
   Serial.begin(115200);
   geigerCounterSerial.begin(BAUD_GEIGERCOUNTER);
-  
+
   delay(10);
 
   Serial.print("Connecting to ");
@@ -43,91 +45,91 @@ void setup() {
 
 void updateRadiationValues() {
 
-  
-    char tmp[8];
-    
-    if(currentCPM != lastCPM) {
-      String(currentCPM).toCharArray(tmp, 8);
-      Serial.print("Sending CPM");
-      Serial.println(tmp);
-      mqttClient.publish(MQTT_TOPIC_CPM, tmp, true);  
-    }
 
-    if(currentuSv != lastuSv) {
-      String(currentuSv).toCharArray(tmp, 8);
-      Serial.print("Sending uSv");
-      Serial.println(tmp);
-      mqttClient.publish(MQTT_TOPIC_USV, tmp, true);
-    }
+  char tmp[8];
 
-    lastCPM = currentCPM;
-    lastuSv = currentuSv;
+  if (currentCPM != lastCPM) {
+    String(currentCPM).toCharArray(tmp, 8);
+    Serial.print("Sending CPM");
+    Serial.println(tmp);
+    mqttClient.publish(MQTT_TOPIC_CPM, tmp, true);
+  }
+
+  if (currentuSv != lastuSv) {
+    String(currentuSv).toCharArray(tmp, 8);
+    Serial.print("Sending uSv");
+    Serial.println(tmp);
+    mqttClient.publish(MQTT_TOPIC_USV, tmp, true);
+  }
+
+  lastCPM = currentCPM;
+  lastuSv = currentuSv;
 }
 
 void connectMqtt() {
 
-  bool newConnection = false; 
+  bool newConnection = false;
 
   while (!mqttClient.connected()) {
     mqttClient.setClient(wifiClient);
     mqttClient.setServer(mqttHost, 1883);
     mqttClient.connect("geigercounter", MQTT_TOPIC_LAST_WILL, 1, true, "disconnected");
-    
+
     delay(1000);
     newConnection = true;
   }
 
-  if(newConnection) {
+  if (newConnection) {
     mqttClient.publish(MQTT_TOPIC_LAST_WILL, "connected", true);
   }
 
 }
 
 void parseReceivedLine(char* input) {
-  
-    char segment = 0;
-    char *token;
 
-    float uSv = 0;
-    float cpm = 0;
+  char segment = 0;
+  char *token;
 
-    token = strtok(input, delimiter);
+  float uSv = 0;
+  float cpm = 0;
 
-    while (token != NULL) {
+  token = strtok(input, delimiter);
 
-        switch(segment) {
+  while (token != NULL) {
 
-            // This is just for validation
-            case IDX_CPS_KEY: if (strcmp(token, "CPS") != 0) return;  break;
-            case IDX_CPM_KEY: if (strcmp(token, "CPM") != 0) return;  break;
-            case IDX_uSv_KEY: if (strcmp(token, "uSv/hr") != 0) return;  break;
-                          
-            case IDX_CPM:
-                Serial.printf("Current CPM: %s\n", token);
-                cpm = String(token).toInt();                
-                break;
+    switch (segment) {
 
-            case IDX_uSv:
-                Serial.printf("Current uSv/hr: %s\n", token);
-                uSv = String(token).toFloat();
-                break;
-        }
+      // This is just for validation
+      case IDX_CPS_KEY: if (strcmp(token, "CPS") != 0) return;  break;
+      case IDX_CPM_KEY: if (strcmp(token, "CPM") != 0) return;  break;
+      case IDX_uSv_KEY: if (strcmp(token, "uSv/hr") != 0) return;  break;
 
-        if(segment > 7) {
-          // Invalid! There should be no more than 7 segments
-          return;
-        }
+      case IDX_CPM:
+        Serial.printf("Current CPM: %s\n", token);
+        cpm = String(token).toInt();
+        break;
 
-        token = strtok(NULL, delimiter);
-        segment++;
+      case IDX_uSv:
+        Serial.printf("Current uSv/hr: %s\n", token);
+        uSv = String(token).toFloat();
+        break;
     }
 
-    currentuSv = uSv;
-    currentCPM = cpm;
+    if (segment > 7) {
+      // Invalid! There should be no more than 7 segments
+      return;
+    }
+
+    token = strtok(NULL, delimiter);
+    segment++;
+  }
+
+  currentuSv = uSv;
+  currentCPM = cpm;
 }
 
 void loop() {
-  
+
   connectMqtt();
   timer.run();
   mqttClient.loop();
@@ -145,10 +147,10 @@ void loop() {
     }
 
     // Just in case the buffer gets to big, start from scratch
-    if(serialInput.length() > RECV_LINE_SIZE + 10) {
+    if (serialInput.length() > RECV_LINE_SIZE + 10) {
       serialInput = "";
     }
 
     Serial.write(in);
-  }  
+  }
 }
