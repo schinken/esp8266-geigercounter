@@ -18,6 +18,7 @@ float lastuSv = 0, currentuSv = 0;
 
 void setup() {
 
+  WiFi.hostname("GeigerCounter");
   WiFi.mode(WIFI_STA);
 
   Serial.begin(115200);
