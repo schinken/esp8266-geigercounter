@@ -18,8 +18,11 @@ float lastuSv = 0, currentuSv = 0;
 
 void setup() {
 
-  WiFi.hostname("GeigerCounter");
+  WiFi.hostname("ESP-GeigerCounter");
   WiFi.mode(WIFI_STA);
+  
+  mqttClient.setClient(wifiClient);
+  mqttClient.setServer(mqttHost, 1883);
 
   Serial.begin(115200);
   geigerCounterSerial.begin(BAUD_GEIGERCOUNTER);
@@ -69,19 +72,12 @@ void updateRadiationValues() {
 
 void connectMqtt() {
 
-  bool newConnection = false;
-
   while (!mqttClient.connected()) {
-    mqttClient.setClient(wifiClient);
-    mqttClient.setServer(mqttHost, 1883);
-    mqttClient.connect("geigercounter", MQTT_TOPIC_LAST_WILL, 1, true, "disconnected");
-
-    delay(1000);
-    newConnection = true;
-  }
-
-  if (newConnection) {
-    mqttClient.publish(MQTT_TOPIC_LAST_WILL, "connected", true);
+    if (mqttClient.connect("geigercounter", MQTT_TOPIC_LAST_WILL, 1, true, "disconnected")) {
+      mqttClient.publish(MQTT_TOPIC_LAST_WILL, "connected", true);
+    } else {
+      delay(1000);
+    }
   }
 
 }
