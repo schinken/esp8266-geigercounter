@@ -15,8 +15,11 @@
 
 #define BAUD_GEIGERCOUNTER 9600
 
-const char* ssid = "----";
-const char* password = "----";
+const char* WIFI_HOSTNAME = "ESP-GeigerCounter";
+const char* WIFI_SSID = "----";
+const char* WIFI_PASSWORD = "----";
+
+const char* OTA_PASSWORD = "foobar";
 
 #define MQTT_TOPIC_CPM "sensor/radiation/cpm"
 #define MQTT_TOPIC_USV "sensor/radiation/uSv"

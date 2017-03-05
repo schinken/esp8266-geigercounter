@@ -1,6 +1,7 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <SoftwareSerial.h>
+#include <ArduinoOTA.h>
 #include <SimpleTimer.h>
 
 #include "settings.h"
@@ -18,31 +19,26 @@ float lastuSv = 0, currentuSv = 0;
 
 void setup() {
 
-  WiFi.hostname("ESP-GeigerCounter");
+  WiFi.hostname(WIFI_HOSTNAME);
   WiFi.mode(WIFI_STA);
-  
-  mqttClient.setClient(wifiClient);
-  mqttClient.setServer(mqttHost, 1883);
 
   Serial.begin(115200);
   geigerCounterSerial.begin(BAUD_GEIGERCOUNTER);
 
   delay(10);
-
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
-  WiFi.begin(ssid, password);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
     delay(500);
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  mqttClient.setClient(wifiClient);
+  mqttClient.setServer(mqttHost, 1883);
+  
+  ArduinoOTA.setHostname(WIFI_HOSTNAME);
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+  ArduinoOTA.begin();
 
   timer.setInterval(UPDATE_INTERVAL_SECONDS * 1000L, updateRadiationValues);
 }
@@ -150,4 +146,6 @@ void loop() {
 
     Serial.write(in);
   }
+
+  ArduinoOTA.handle();
 }
