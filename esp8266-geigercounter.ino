@@ -19,13 +19,12 @@ float lastuSv = 0, currentuSv = 0;
 
 void setup() {
 
-  WiFi.hostname(WIFI_HOSTNAME);
-  WiFi.mode(WIFI_STA);
-
   Serial.begin(115200);
   geigerCounterSerial.begin(BAUD_GEIGERCOUNTER);
-
   delay(10);
+
+  WiFi.hostname(WIFI_HOSTNAME);
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   while (WiFi.status() != WL_CONNECTED) {
@@ -34,7 +33,7 @@ void setup() {
   }
 
   mqttClient.setClient(wifiClient);
-  mqttClient.setServer(mqttHost, 1883);
+  mqttClient.setServer(MQTT_HOST, 1883);
   
   ArduinoOTA.setHostname(WIFI_HOSTNAME);
   ArduinoOTA.setPassword(OTA_PASSWORD);
@@ -69,7 +68,7 @@ void updateRadiationValues() {
 void connectMqtt() {
 
   while (!mqttClient.connected()) {
-    if (mqttClient.connect("geigercounter", MQTT_TOPIC_LAST_WILL, 1, true, "disconnected")) {
+    if (mqttClient.connect(WIFI_HOSTNAME, MQTT_TOPIC_LAST_WILL, 1, true, "disconnected")) {
       mqttClient.publish(MQTT_TOPIC_LAST_WILL, "connected", true);
     } else {
       delay(1000);
