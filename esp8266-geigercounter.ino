@@ -19,6 +19,9 @@ float lastuSv = 0, currentuSv = 0;
 
 void setup() {
 
+// power up wait
+  delay(3000);
+  
   Serial.begin(115200);
   geigerCounterSerial.begin(BAUD_GEIGERCOUNTER);
   delay(10);
