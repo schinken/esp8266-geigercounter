@@ -33,16 +33,21 @@ float lastuSv = 0, currentuSv = 0;
 char hostname[16];
 
 void setup() {
+  delay(3000);
   Serial.begin(115200);
+  delay(2000);
   Serial.println("\n");
   Serial.println("Hello from esp8266-geigercounter");
+  Serial.printf("Core Version: %s\n", ESP.getCoreVersion().c_str());
+  Serial.printf("Boot Version: %u\n", ESP.getBootVersion());
+  Serial.printf("Boot Mode: %u\n", ESP.getBootMode());
+  Serial.printf("CPU Frequency: %u MHz\n", ESP.getCpuFreqMHz());
+  Serial.printf("Reset reason: %s\n", ESP.getResetReason().c_str());
+  delay(3000);
 
   geigerCounterSerial.begin(BAUD_GEIGERCOUNTER);
 
-  // Power up wait
-  delay(2000);
-
-  WiFiManager wifiManager;
+  
   int32_t chipid = ESP.getChipId();
 
   Serial.print("MQTT_MAX_PACKET_SIZE: ");
@@ -61,11 +66,28 @@ void setup() {
   snprintf(MQTT_TOPIC_USV_MEASUREMENT, 127, "%s/%s/%s_%s/state", FIRMWARE_PREFIX, hostname, hostname, "uSv");
 #endif
 
-#ifdef CONF_WIFI_PASSWORD
-  wifiManager.autoConnect(hostname, CONF_WIFI_PASSWORD);
-#else
-  wifiManager.autoConnect(hostname);
-#endif
+  Serial.print("Connecting to WiFi");
+
+  WiFi.mode(WIFI_STA);
+  unsigned long wifiConnectStart = millis();
+  while (WiFi.status() != WL_CONNECTED) {
+    if (WiFi.status() == WL_CONNECT_FAILED) {
+      return;
+    }
+    if (millis() - wifiConnectStart > 10000) {
+      WiFiManager wifiManager;
+      #ifdef CONF_WIFI_PASSWORD
+        wifiManager.autoConnect(hostname, CONF_WIFI_PASSWORD);
+      #else
+        wifiManager.autoConnect(hostname);
+      #endif
+    }
+    delay(100);
+    Serial.print(".");
+  }
+
+  Serial.print("\nIP: ");
+  Serial.println(WiFi.localIP());
 
   WiFi.hostname(hostname);
   mqttClient.setClient(wifiClient);
@@ -220,6 +242,7 @@ void loop() {
   timer.run();
   mqttConnect();
   mqttClient.loop();
+  ESP.wdtFeed();
 
   if (geigerCounterSerial.available()) {
     char in = (char) geigerCounterSerial.read();
@@ -240,7 +263,7 @@ void loop() {
 
     Serial.write(in);
   }
-
+  
   ArduinoOTA.handle();
 }
 
@@ -285,7 +308,7 @@ void parseReceivedLine(char* input) {
       case IDX_uSv_KEY: if (strcmp(token, "uSv/hr") != 0) return;  break;
 
       case IDX_CPM:
-        Serial.printf("Current CPM: %s\n", token);
+        Serial.printf("\nCurrent CPM: %s\n", token);
         cpm = String(token).toInt();
         break;
 
