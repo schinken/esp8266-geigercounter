@@ -15,7 +15,7 @@
 
 #define BAUD_GEIGERCOUNTER 9600
 
-//const char* HOSTNAME = "ESP-GeigerCounter"; //Optional
+//#define HOSTNAME "ESP-GeigerCounter" //Optional
 
 const char* OTA_PASSWORD = "foobar";
 

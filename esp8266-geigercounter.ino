@@ -30,7 +30,7 @@ char serialInputHelper[RECV_LINE_SIZE];
 int lastCPM = 0, currentCPM = 0;
 float lastuSv = 0, currentuSv = 0;
 
-char hostname[16];
+char hostname[24];
 
 void setup() {
   delay(3000);
@@ -55,9 +55,9 @@ void setup() {
 
 
 #ifdef HOSTNAME
-  hostname = HOSTNAME;
+  strncpy(hostname, HOSTNAME, sizeof(hostname));
 #else
-  snprintf(hostname, 24, "GEIGERCTR-%X", chipid);
+  snprintf(hostname, sizeof(hostname), "GEIGERCTR-%X", chipid);
 #endif
 
 #ifdef USE_HA_AUTODISCOVERY
