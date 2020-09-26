@@ -1,40 +1,55 @@
+#include "wifi.h"
+
 #include <ESP8266WiFi.h>
-#include <ArduinoOTA.h>
-#include <SoftwareSerial.h>
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
-
-#include "dep/pubsubclient-2.7/src/PubSubClient.cpp"
-#include "dep/WiFiManager-0.15.0/WiFiManager.cpp"
-#include "dep/SimpleTimer-schinken/SimpleTimer.cpp"
-
+#include <ArduinoJson.h>
+#include <WiFiManager.h>
+#include <PubSubClient.h>
+#include <SoftwareSerial.h>
 
 #include "settings.h"
 
-#ifdef USE_HA_AUTODISCOVERY
-  #define FIRMWARE_PREFIX "esp8266-geigercounter"
-  char MQTT_TOPIC_LAST_WILL[128];
-  char MQTT_TOPIC_CPM_MEASUREMENT[128];
-  char MQTT_TOPIC_USV_MEASUREMENT[128];
-#endif
+uint8_t mqttRetryCounter = 0;
 
+
+WiFiManager wifiManager;
 WiFiClient wifiClient;
 PubSubClient mqttClient;
+
+WiFiManagerParameter custom_mqtt_server("server", "mqtt server", mqtt_server, sizeof(mqtt_server));
+WiFiManagerParameter custom_mqtt_user("user", "MQTT username", username, sizeof(username));
+WiFiManagerParameter custom_mqtt_pass("pass", "MQTT password", password, sizeof(password));
+
+unsigned long lastMqttConnectionAttempt = millis();
+const long mqttConnectionInterval = 60000;
+
+unsigned long statusPublishPreviousMillis = millis();
+const long statusPublishInterval = 30000;
+
+char identifier[24];
+#define FIRMWARE_PREFIX "esp8266-geigercounter"
+#define AVAILABILITY_ONLINE "online"
+#define AVAILABILITY_OFFLINE "offline"
+char MQTT_TOPIC_AVAILABILITY[128];
+char MQTT_TOPIC_CPM[128];
+char MQTT_TOPIC_USV[128];
+
+char MQTT_TOPIC_AUTOCONF_CPM[128];
+char MQTT_TOPIC_AUTOCONF_USV[128];
+
 SoftwareSerial geigerCounterSerial(PIN_UART_RX, PIN_UART_TX);
-SimpleTimer timer;
 
-uint8_t mqttRetryCounter = 0;
-String serialInput = "";
-char serialInputHelper[RECV_LINE_SIZE];
 
-int lastCPM = 0, currentCPM = 0;
-float lastuSv = 0, currentuSv = 0;
+bool shouldSaveConfig = false;
 
-char hostname[24];
+void saveConfigCallback () {
+  shouldSaveConfig = true;
+}
 
 void setup() {
   delay(3000);
-  Serial.begin(115200);
+  Serial.begin(9600);
   delay(2000);
   Serial.println("\n");
   Serial.println("Hello from esp8266-geigercounter");
@@ -43,290 +58,150 @@ void setup() {
   Serial.printf("Boot Mode: %u\n", ESP.getBootMode());
   Serial.printf("CPU Frequency: %u MHz\n", ESP.getCpuFreqMHz());
   Serial.printf("Reset reason: %s\n", ESP.getResetReason().c_str());
-  delay(3000);
 
-  geigerCounterSerial.begin(BAUD_GEIGERCOUNTER);
+  geigerCounterSerial.begin(9600);
 
-  
-  int32_t chipid = ESP.getChipId();
+  snprintf(identifier, sizeof(identifier), "GEIGERCTR-%X", ESP.getChipId());
+  snprintf(MQTT_TOPIC_AVAILABILITY, 127, "%s/%s/status", FIRMWARE_PREFIX, identifier);
+  snprintf(MQTT_TOPIC_CPM, 127, "%s/%s_cpm/state", FIRMWARE_PREFIX, identifier);
+  snprintf(MQTT_TOPIC_USV, 127, "%s/%s_usv/state", FIRMWARE_PREFIX, identifier);
 
-  Serial.print("MQTT_MAX_PACKET_SIZE: ");
-  Serial.println(MQTT_MAX_PACKET_SIZE);
+  snprintf(MQTT_TOPIC_AUTOCONF_CPM, 127, "homeassistant/sensor/%s/%s_cpm/config", FIRMWARE_PREFIX, identifier);
+  snprintf(MQTT_TOPIC_AUTOCONF_USV, 127, "homeassistant/sensor/%s/%s_usv/config", FIRMWARE_PREFIX, identifier);
 
 
-#ifdef HOSTNAME
-  strncpy(hostname, HOSTNAME, sizeof(hostname));
-#else
-  snprintf(hostname, sizeof(hostname), "GEIGERCTR-%X", chipid);
-#endif
 
-#ifdef USE_HA_AUTODISCOVERY
-  snprintf(MQTT_TOPIC_LAST_WILL, 127, "%s/%s/presence", FIRMWARE_PREFIX, hostname);
-  snprintf(MQTT_TOPIC_CPM_MEASUREMENT, 127, "%s/%s/%s_%s/state", FIRMWARE_PREFIX, hostname, hostname, "cpm");
-  snprintf(MQTT_TOPIC_USV_MEASUREMENT, 127, "%s/%s/%s_%s/state", FIRMWARE_PREFIX, hostname, hostname, "uSv");
-#endif
+  WiFi.hostname(identifier);
 
-  Serial.print("Connecting to WiFi");
-
-  WiFi.mode(WIFI_STA);
-  unsigned long wifiConnectStart = millis();
-  while (WiFi.status() != WL_CONNECTED) {
-    if (WiFi.status() == WL_CONNECT_FAILED) {
-      return;
-    }
-    if (millis() - wifiConnectStart > 10000) {
-      WiFiManager wifiManager;
-      #ifdef CONF_WIFI_PASSWORD
-        wifiManager.autoConnect(hostname, CONF_WIFI_PASSWORD);
-      #else
-        wifiManager.autoConnect(hostname);
-      #endif
-    }
-    delay(100);
-    Serial.print(".");
-  }
-
-  Serial.print("\nIP: ");
-  Serial.println(WiFi.localIP());
-
-  WiFi.hostname(hostname);
-  mqttClient.setClient(wifiClient);
-  mqttClient.setServer(MQTT_HOST, 1883);
-
-  ArduinoOTA.setHostname(hostname);
-  ArduinoOTA.setPassword(OTA_PASSWORD);
-  ArduinoOTA.begin();
+  loadConfig();
+  setupWifi();
+  mqttClient.setServer(mqtt_server, 1883);
+  mqttClient.setKeepAlive(10);
+  mqttClient.setBufferSize(2048);
 
   Serial.print("Hostname: ");
-  Serial.println(hostname);
+  Serial.println(identifier);
+  Serial.print("\nIP: ");
+  Serial.println(WiFi.localIP());
 
   Serial.println("-- Current GPIO Configuration --");
   Serial.print("PIN_UART_RX: ");
   Serial.println(PIN_UART_RX);
 
-  mqttConnect();
-  timer.setInterval(UPDATE_INTERVAL_SECONDS * 1000L, updateRadiationValues);
+  //Disable blue LED
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
+
+  mqttReconnect();
 }
 
-void mqttConnect() {
-  while (!mqttClient.connected()) {
-
-    bool mqttConnected = false;
-    if (MQTT_USERNAME && MQTT_PASSWORD) {
-      mqttConnected = mqttClient.connect(hostname, MQTT_USERNAME, MQTT_PASSWORD, MQTT_TOPIC_LAST_WILL, 1, true, MQTT_LAST_WILL_PAYLOAD_DISCONNECTED);
-    } else {
-      mqttConnected = mqttClient.connect(hostname, MQTT_TOPIC_LAST_WILL, 1, true, MQTT_LAST_WILL_PAYLOAD_DISCONNECTED);
-    }
-
-    if (mqttConnected) {
-      Serial.println("Connected to MQTT Broker");
-      mqttClient.publish(MQTT_TOPIC_LAST_WILL, MQTT_LAST_WILL_PAYLOAD_CONNECTED, true);
-      mqttRetryCounter = 0;
-
-      #ifdef USE_HA_AUTODISCOVERY
-        setupHAAutodiscovery();
-      #endif
-
-    } else {
-      Serial.println("Failed to connect to MQTT Broker");
-
-      if (mqttRetryCounter++ > MQTT_MAX_CONNECT_RETRY) {
-        Serial.println("Restarting uC");
-        ESP.restart();
-      }
-
-      delay(2000);
-    }
-  }
-}
-
-
-#ifdef USE_HA_AUTODISCOVERY
-#define AUTOCONFIG_PAYLOAD_TPL_USV  "{\
-\"stat_t\":\"%s/%s/%s_uSv/state\",\
-\"avty_t\":\"%s/%s/presence\",\
-\"unique_id\":\"%s_uSv\",\
-\"name\":\"%s uSv\",\
-\"unit_of_meas\":\"µSv/h\",\
-\"dev\": {\
-\"identifiers\":\"%s\",\
-\"name\":\"%s\",\
-\"manufacturer\":\"MightyOhm LLC\",\
-\"model\":\"Geiger Counter\"\
-}\
-}"
-#define AUTOCONFIG_PAYLOAD_TPL_CPM  "{\
-\"stat_t\":\"%s/%s/%s_cpm/state\",\
-\"avty_t\":\"%s/%s/presence\",\
-\"unique_id\":\"%s_cpm\",\
-\"name\":\"%s CPM\",\
-\"unit_of_meas\":\"CPM\",\
-\"dev\": {\
-\"identifiers\":\"%s\",\
-\"name\":\"%s\",\
-\"manufacturer\":\"MightyOhm LLC\",\
-\"model\":\"Geiger Counter\"\
-}\
-}"
-
-void setupHAAutodiscovery() {
-  char autoconfig_topic_cpm[128];
-  char autoconfig_payload_cpm[1024];
-  char autoconfig_topic_usv[128];
-  char autoconfig_payload_usv[1024];
-
-  snprintf(
-    autoconfig_topic_cpm,
-    127,
-    "%s/sensor/%s/%s_cpm/config",
-    HA_DISCOVERY_PREFIX,
-    hostname,
-    hostname
-  );
-
-  snprintf(
-    autoconfig_topic_usv,
-    127,
-    "%s/sensor/%s/%s_usv/config",
-    HA_DISCOVERY_PREFIX,
-    hostname,
-    hostname
-  );
-
-  snprintf(
-    autoconfig_payload_cpm,
-    1023,
-
-    AUTOCONFIG_PAYLOAD_TPL_CPM,
-
-    FIRMWARE_PREFIX,
-    hostname,
-    hostname,
-    FIRMWARE_PREFIX,
-    hostname,
-    hostname,
-    hostname,
-    hostname,
-    hostname
-  );
-
-  snprintf(
-    autoconfig_payload_usv,
-    1023,
-
-    AUTOCONFIG_PAYLOAD_TPL_USV,
-
-    FIRMWARE_PREFIX,
-    hostname,
-    hostname,
-    FIRMWARE_PREFIX,
-    hostname,
-    hostname,
-    hostname,
-    hostname,
-    hostname
-  );
-
-  if(
-    mqttClient.publish(autoconfig_topic_cpm, autoconfig_payload_cpm, true) &&
-    mqttClient.publish(autoconfig_topic_usv, autoconfig_payload_usv, true)
-  ){
-    Serial.println("Autoconf publish successful");
-  } else {
-    Serial.println("Autoconf publish failed. Is MQTT_MAX_PACKET_SIZE large enough?");
-  }
-}
-#endif
 
 void loop() {
-  timer.run();
-  mqttConnect();
   mqttClient.loop();
-  ESP.wdtFeed();
 
-  if (geigerCounterSerial.available()) {
-    char in = (char) geigerCounterSerial.read();
-
-    serialInput += in;
-
-    if (in == '\n') {
-      serialInput.toCharArray(serialInputHelper, RECV_LINE_SIZE);
-      parseReceivedLine(serialInputHelper);
-
-      serialInput = "";
-    }
-
-    // Just in case the buffer gets to big, start from scratch
-    if (serialInput.length() > RECV_LINE_SIZE + 10) {
-      serialInput = "";
-    }
-
-    Serial.write(in);
-  }
+  handleUart();
   
-  ArduinoOTA.handle();
+  if (statusPublishInterval <= (millis() - statusPublishPreviousMillis)) {
+    statusPublishPreviousMillis = millis();
+    updateRadiationValues();
+  }
+
+  if (!mqttClient.connected() && (mqttConnectionInterval <= (millis() - lastMqttConnectionAttempt)) )  {
+    lastMqttConnectionAttempt = millis();
+    mqttReconnect();
+  }
 }
 
-void updateRadiationValues() {
-  char tmp[8];
+void setupWifi() {
+  wifiManager.setDebugOutput(false);
+  wifiManager.setSaveConfigCallback(saveConfigCallback);
 
-  if (currentCPM != lastCPM) {
-    String(currentCPM).toCharArray(tmp, 8);
-    Serial.print("Sending CPM: ");
-    Serial.println(tmp);
-    mqttClient.publish(MQTT_TOPIC_CPM_MEASUREMENT, tmp, true);
+  wifiManager.addParameter(&custom_mqtt_server);
+  wifiManager.addParameter(&custom_mqtt_user);
+  wifiManager.addParameter(&custom_mqtt_pass);
+
+  WiFi.hostname(identifier);
+  wifiManager.autoConnect(identifier);
+  mqttClient.setClient(wifiClient);
+
+  strcpy(mqtt_server, custom_mqtt_server.getValue());
+  strcpy(username, custom_mqtt_user.getValue());
+  strcpy(password, custom_mqtt_pass.getValue());
+
+  if (shouldSaveConfig) {
+    saveConfig();
+  } else {
+    //For some reason, the read values get overwritten in this function
+    //To combat this, we just reload the config
+    //This is most likely a logic error which could be fixed otherwise
+    loadConfig();
   }
-
-  if (currentuSv != lastuSv) {
-    String(currentuSv).toCharArray(tmp, 8);
-    Serial.print("Sending uSv: ");
-    Serial.println(tmp);
-    mqttClient.publish(MQTT_TOPIC_USV_MEASUREMENT, tmp, true);
-  }
-
-  lastCPM = currentCPM;
-  lastuSv = currentuSv;
 }
 
-void parseReceivedLine(char* input) {
+void resetWifiSettingsAndReboot() {
+  wifiManager.resetSettings();
+  delay(3000);
+  ESP.restart();
+}
 
-  char segment = 0;
-  char *token;
+void mqttReconnect() {
+  for (int attempt = 0; attempt < 3; ++attempt) {
+    if (mqttClient.connect(identifier, username, password, MQTT_TOPIC_AVAILABILITY, 1, true, AVAILABILITY_OFFLINE)) {
+      mqttClient.publish(MQTT_TOPIC_AVAILABILITY, AVAILABILITY_ONLINE, true);
 
-  float uSv = 0;
-  float cpm = 0;
+      Serial.println("Connected to MQTT Server");
 
-  token = strtok(input, delimiter);
-
-  while (token != NULL) {
-
-    switch (segment) {
-
-      // This is just for validation
-      case IDX_CPS_KEY: if (strcmp(token, "CPS") != 0) return;  break;
-      case IDX_CPM_KEY: if (strcmp(token, "CPM") != 0) return;  break;
-      case IDX_uSv_KEY: if (strcmp(token, "uSv/hr") != 0) return;  break;
-
-      case IDX_CPM:
-        Serial.printf("\nCurrent CPM: %s\n", token);
-        cpm = String(token).toInt();
-        break;
-
-      case IDX_uSv:
-        Serial.printf("Current uSv/hr: %s\n", token);
-        uSv = String(token).toFloat();
-        break;
+      publishAutoConfig();
+      break;
+    } else {
+      Serial.println("Failed to connect to MQTT Server :(");
+      delay(5000);
     }
-
-    if (segment > 7) {
-      // Invalid! There should be no more than 7 segments
-      return;
-    }
-
-    token = strtok(NULL, delimiter);
-    segment++;
   }
+}
 
-  currentuSv = uSv;
-  currentCPM = cpm;
+boolean isMqttConnected() {
+  return mqttClient.connected();
+}
+
+void publishAutoConfig() {
+  char mqttPayload[2048];
+  DynamicJsonDocument device(256);
+  StaticJsonDocument<64> identifiersDoc;
+  JsonArray identifiers = identifiersDoc.to<JsonArray>();
+
+  identifiers.add(identifier);
+
+  device["identifiers"] = identifiers;
+  device["manufacturer"] = "MightyOhm LLC";
+  device["model"] = "Geiger Counter";
+  device["name"] = identifier;
+  device["sw_version"] = "0.0.1";
+
+
+  DynamicJsonDocument cpmSensorPayload(512);
+
+  cpmSensorPayload["device"] = device.as<JsonObject>();
+  cpmSensorPayload["availability_topic"] = MQTT_TOPIC_AVAILABILITY;
+  cpmSensorPayload["state_topic"] = MQTT_TOPIC_CPM;
+  cpmSensorPayload["name"] = identifier + String(" CPM");
+  cpmSensorPayload["unit_of_measurement"] = "CPM";
+  cpmSensorPayload["unique_id"] = identifier + String("_cpm");
+
+  serializeJson(cpmSensorPayload, mqttPayload);
+  mqttClient.publish(MQTT_TOPIC_AUTOCONF_CPM, mqttPayload, true);
+
+  DynamicJsonDocument usvSensorPayload(512);
+
+  usvSensorPayload["device"] = device.as<JsonObject>();
+  usvSensorPayload["availability_topic"] = MQTT_TOPIC_AVAILABILITY;
+  usvSensorPayload["state_topic"] = MQTT_TOPIC_USV;
+  usvSensorPayload["name"] = identifier + String(" uSv");
+  usvSensorPayload["unit_of_measurement"] = "µSv/h";
+  usvSensorPayload["unique_id"] = identifier + String("_uSv");
+
+  serializeJson(usvSensorPayload, mqttPayload);
+  mqttClient.publish(MQTT_TOPIC_AUTOCONF_USV, mqttPayload, true);
+
+  Serial.println("Published MQTT Autoconf");
 }
