@@ -15,7 +15,7 @@ const char* WIFI_HOSTNAME = "ESP-GeigerCounter";
 const char* WIFI_SSID = "xxxxxxxxxx";
 const char* WIFI_PASSWORD = "xxxxxxxxxxx";
 
-const char* OTA_PASSWORD = "foobar";
+//#define OTA_PASSWORD "foobar"
 
 #define MQTT_HOST "mqtt.xxxxxxxxx.org"
 

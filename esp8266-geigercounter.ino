@@ -1,7 +1,10 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <SoftwareSerial.h>
-#include <ArduinoOTA.h>
+
+#ifdef OTA_PASSWORD
+  #include <ArduinoOTA.h>
+#endif
 
 #include "settings.h"
 
@@ -36,10 +39,12 @@ void setup() {
  
   mqttClient.setClient(wifiClient);
   mqttClient.setServer(MQTT_HOST, 1883);
-  
-  ArduinoOTA.setHostname(WIFI_HOSTNAME);
-  ArduinoOTA.setPassword(OTA_PASSWORD);
-  ArduinoOTA.begin();
+
+  #ifdef OTA_PASSWORD
+    ArduinoOTA.setHostname(WIFI_HOSTNAME);
+    ArduinoOTA.setPassword(OTA_PASSWORD);
+    ArduinoOTA.begin();
+  #endif
 
 }
 
@@ -144,6 +149,8 @@ void loop() {
     }
 
   }
-
-  ArduinoOTA.handle();
+  
+  #ifdef OTA_PASSWORD
+    ArduinoOTA.handle();
+  #endif
 }
