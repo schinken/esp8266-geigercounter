@@ -16,9 +16,9 @@ Here's some code and schematic to connect your mightyohm.com geiger counter to t
 
 ## images
 
-![](https://raw.githubusercontent.com/schinken/esp8266-geigercounter/master/images/img-1.jpg|width=100)
-![](https://raw.githubusercontent.com/schinken/esp8266-geigercounter/master/images/img-2.jpg|width=100)
-![](https://raw.githubusercontent.com/schinken/esp8266-geigercounter/master/images/img-3.jpg|width=100)
+<img src="https://raw.githubusercontent.com/schinken/esp8266-geigercounter/master/images/img-1.jpg" width="100">
+<img src="https://raw.githubusercontent.com/schinken/esp8266-geigercounter/master/images/img-2.jpg" width="100">
+<img src="https://raw.githubusercontent.com/schinken/esp8266-geigercounter/master/images/img-3.jpg" width="100">
 
 ## license and credits
 
