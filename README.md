@@ -12,8 +12,13 @@ To compile this code, just clone or download the master branch as a zip and ramp
 ## how to connect the wires
 Here's some code and schematic to connect your mightyohm.com geiger counter to the Internet of Things (IoT).
 
-![Schematic](https://raw.githubusercontent.com/b4ckspace/esp8266-geigercounter/master/schematic.png "How to connect")
+![Schematic](https://raw.githubusercontent.com/schinken/esp8266-geigercounter/master/images/schematic.png "How to connect")
 
+## images
+
+![](https://raw.githubusercontent.com/schinken/esp8266-geigercounter/master/images/img-1.jpg|width=100)
+![](https://raw.githubusercontent.com/schinken/esp8266-geigercounter/master/images/img-2.jpg|width=100)
+![](https://raw.githubusercontent.com/schinken/esp8266-geigercounter/master/images/img-3.jpg|width=100)
 
 ## license and credits
 
