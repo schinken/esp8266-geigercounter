@@ -2,28 +2,27 @@
 #include <PubSubClient.h>
 #include <SoftwareSerial.h>
 #include <ArduinoOTA.h>
-#include <SimpleTimer.h>
 
 #include "settings.h"
 
 WiFiClient wifiClient;
 PubSubClient mqttClient;
 SoftwareSerial geigerCounterSerial(PIN_UART_RX, PIN_UART_TX);
-SimpleTimer timer;
 
-String serialInput = "";
-char serialInputHelper[RECV_LINE_SIZE];
+uint8_t idx = 0;
+char buffer[64];
 
 int lastCPM = 0, currentCPM = 0;
 float lastuSv = 0, currentuSv = 0;
+unsigned long lastPublishMs = 0;
+
 
 void setup() {
-
-// power up wait
+  // power up wait
   delay(3000);
   
   Serial.begin(115200);
-  geigerCounterSerial.begin(BAUD_GEIGERCOUNTER);
+  geigerCounterSerial.begin(9600);
   delay(10);
 
   WiFi.hostname(WIFI_HOSTNAME);
@@ -34,7 +33,7 @@ void setup() {
     Serial.print(".");
     delay(500);
   }
-
+ 
   mqttClient.setClient(wifiClient);
   mqttClient.setServer(MQTT_HOST, 1883);
   
@@ -42,25 +41,18 @@ void setup() {
   ArduinoOTA.setPassword(OTA_PASSWORD);
   ArduinoOTA.begin();
 
-  timer.setInterval(UPDATE_INTERVAL_SECONDS * 1000L, updateRadiationValues);
 }
 
-void updateRadiationValues() {
-
-
+void publishValues() {
   char tmp[8];
 
   if (currentCPM != lastCPM) {
-    String(currentCPM).toCharArray(tmp, 8);
-    Serial.print("Sending CPM");
-    Serial.println(tmp);
+    sprintf(tmp, "%d", currentCPM); 
     mqttClient.publish(MQTT_TOPIC_CPM, tmp, true);
   }
 
   if (currentuSv != lastuSv) {
-    String(currentuSv).toCharArray(tmp, 8);
-    Serial.print("Sending uSv");
-    Serial.println(tmp);
+    sprintf(tmp, "%.2f", currentuSv); 
     mqttClient.publish(MQTT_TOPIC_USV, tmp, true);
   }
 
@@ -73,7 +65,9 @@ void connectMqtt() {
   while (!mqttClient.connected()) {
     if (mqttClient.connect(WIFI_HOSTNAME, MQTT_TOPIC_LAST_WILL, 1, true, "disconnected")) {
       mqttClient.publish(MQTT_TOPIC_LAST_WILL, "connected", true);
+      Serial.println("MQTT connected");
     } else {
+      Serial.println("MQTT connect failed");
       delay(1000);
     }
   }
@@ -81,14 +75,13 @@ void connectMqtt() {
 }
 
 void parseReceivedLine(char* input) {
-
   char segment = 0;
   char *token;
 
   float uSv = 0;
   float cpm = 0;
 
-  token = strtok(input, delimiter);
+  token = strtok(input, ", ");
 
   while (token != NULL) {
 
@@ -101,12 +94,12 @@ void parseReceivedLine(char* input) {
 
       case IDX_CPM:
         Serial.printf("Current CPM: %s\n", token);
-        cpm = String(token).toInt();
+        cpm = atoi(token);
         break;
 
       case IDX_uSv:
         Serial.printf("Current uSv/hr: %s\n", token);
-        uSv = String(token).toFloat();
+        uSv = atof(token);
         break;
     }
 
@@ -115,7 +108,7 @@ void parseReceivedLine(char* input) {
       return;
     }
 
-    token = strtok(NULL, delimiter);
+    token = strtok(NULL, ", ");
     segment++;
   }
 
@@ -126,27 +119,30 @@ void parseReceivedLine(char* input) {
 void loop() {
 
   connectMqtt();
-  timer.run();
   mqttClient.loop();
 
+  if (millis() - lastPublishMs > MQTT_PUBLISH_INTERVAL_MS) {
+    lastPublishMs = millis();
+    publishValues();
+  }
+
   if (geigerCounterSerial.available()) {
-    char in = (char) geigerCounterSerial.read();
+    char input = geigerCounterSerial.read();
+    buffer[idx++] = input;
 
-    serialInput += in;
-
-    if (in == '\n') {
-      serialInput.toCharArray(serialInputHelper, RECV_LINE_SIZE);
-      parseReceivedLine(serialInputHelper);
-
-      serialInput = "";
+    // Echo Serial-Data from GeigerCounter to USB-Debug
+    Serial.write(input);
+    
+    if (input == '\n') {
+      parseReceivedLine(buffer);
+      idx = 0;
     }
 
     // Just in case the buffer gets to big, start from scratch
-    if (serialInput.length() > RECV_LINE_SIZE + 10) {
-      serialInput = "";
+    if (idx > 42) {
+      idx = 0;
     }
 
-    Serial.write(in);
   }
 
   ArduinoOTA.handle();
