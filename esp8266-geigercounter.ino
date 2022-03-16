@@ -45,6 +45,7 @@ void setup() {
  
   mqttClient.setClient(wifiClient);
   mqttClient.setServer(MQTT_HOST, 1883);
+  connectMqtt();
 
   #ifdef OTA_PASSWORD
     ArduinoOTA.setHostname(hostname);
@@ -52,7 +53,17 @@ void setup() {
     ArduinoOTA.begin();
   #endif
 
+  #ifdef PIN_PULSE
+    pinMode(PIN_PULSE, INPUT);
+    attachInterrupt(PIN_PULSE, onPulse, RISING);
+  #endif
 }
+
+#ifdef PIN_PULSE
+ICACHE_RAM_ATTR void onPulse() {
+  mqttClient.publish(MQTT_TOPIC_PULSE, "true");
+}
+#endif
 
 void publishValues() {
   char tmp[8];

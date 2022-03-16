@@ -8,6 +8,7 @@
 
 #define PIN_UART_RX D1 // 4
 #define PIN_UART_TX 13 // UNUSED
+//#define PIN_PULSE D2
 
 #define BAUD_GEIGERCOUNTER 9600
 
@@ -22,6 +23,7 @@
 #define MQTT_TOPIC_CPM "sensor/geigercounter/cpm"
 #define MQTT_TOPIC_USV "sensor/geigercounter/uSv"
 #define MQTT_TOPIC_LAST_WILL "sensor/geigercounter/status"
+#define MQTT_TOPIC_PULSE "sensor/geigercounter/pulse"
 
 // Only publishes values if changed since last publish
 #define MQTT_PUBLISH_INTERVAL_MS (10 * 1000)
