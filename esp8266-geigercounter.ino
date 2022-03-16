@@ -14,11 +14,11 @@ SoftwareSerial geigerCounterSerial(PIN_UART_RX, PIN_UART_TX);
 
 uint8_t idx = 0;
 char buffer[64];
+char hostname[24];
 
 int lastCPM = 0, currentCPM = 0;
 float lastuSv = 0, currentuSv = 0;
 unsigned long lastPublishMs = 0;
-
 
 void setup() {
   // power up wait
@@ -27,8 +27,14 @@ void setup() {
   Serial.begin(115200);
   geigerCounterSerial.begin(9600);
   delay(10);
+  
+  #ifdef WIFI_HOSTNAME
+    strncpy(hostname, WIFI_HOSTNAME, sizeof(hostname));
+  #else
+    snprintf(hostname, sizeof(hostname), "ESP-GEIGER-%X", ESP.getChipId());
+  #endif
 
-  WiFi.hostname(WIFI_HOSTNAME);
+  WiFi.hostname(hostname);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -41,7 +47,7 @@ void setup() {
   mqttClient.setServer(MQTT_HOST, 1883);
 
   #ifdef OTA_PASSWORD
-    ArduinoOTA.setHostname(WIFI_HOSTNAME);
+    ArduinoOTA.setHostname(hostname);
     ArduinoOTA.setPassword(OTA_PASSWORD);
     ArduinoOTA.begin();
   #endif
@@ -68,7 +74,7 @@ void publishValues() {
 void connectMqtt() {
 
   while (!mqttClient.connected()) {
-    if (mqttClient.connect(WIFI_HOSTNAME, MQTT_TOPIC_LAST_WILL, 1, true, "disconnected")) {
+    if (mqttClient.connect(hostname, MQTT_TOPIC_LAST_WILL, 1, true, "disconnected")) {
       mqttClient.publish(MQTT_TOPIC_LAST_WILL, "connected", true);
       Serial.println("MQTT connected");
     } else {

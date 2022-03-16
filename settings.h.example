@@ -11,9 +11,9 @@
 
 #define BAUD_GEIGERCOUNTER 9600
 
-const char* WIFI_HOSTNAME = "ESP-GeigerCounter";
-const char* WIFI_SSID = "xxxxxxxxxx";
-const char* WIFI_PASSWORD = "xxxxxxxxxxx";
+//#define WIFI_HOSTNAME "ESP-GeigerCounter";
+#define WIFI_SSID "xxxx"
+#define WIFI_PASSWORD "xxxxx"
 
 //#define OTA_PASSWORD "foobar"
 
