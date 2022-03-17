@@ -1,12 +1,11 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <SoftwareSerial.h>
+#include "settings.h"
 
 #ifdef OTA_PASSWORD
   #include <ArduinoOTA.h>
 #endif
-
-#include "settings.h"
 
 WiFiClient wifiClient;
 PubSubClient mqttClient;
