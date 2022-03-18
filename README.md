@@ -6,6 +6,7 @@ To compile this code, just clone or download the master branch as a zip and ramp
 
 * Needed external dependencies are PubSubClient and optionally ArduinoOTA.
 * Rename `settings.h.example` to `settings.h`
+* Change the configuration in settings.h to your needs
 * Select Wemos D1 Mini clone in Platform
 
 
