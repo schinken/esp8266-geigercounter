@@ -1,6 +1,6 @@
 # Mightyohm.com Geigercounter connected to ESP8266
 
-❗ **This project assumes that you know how to solder, flash an arduino and use MQTT. This repository not a tutorial - there are plenty of them around the internet. This repository serves the purpose to provide the code to anyone who wants to use it, or extend it yourself to your needs** ❗
+❗ **This project assumes that you know how to solder, flash an arduino and use MQTT. This repository is not a tutorial - there are plenty of them around the internet. This repository serves the purpose to provide the code to anyone who wants to use it, or extend it yourself to your needs** ❗
 
 ## getting started
 
