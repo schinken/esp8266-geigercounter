@@ -176,7 +176,7 @@ void publishAutoConfig() {
   device["manufacturer"] = "MightyOhm LLC";
   device["model"] = "Geiger Counter";
   device["name"] = identifier;
-  device["sw_version"] = "0.0.1";
+  device["sw_version"] = "2023.08.0";
 
 
   DynamicJsonDocument cpmSensorPayload(512);
@@ -184,8 +184,9 @@ void publishAutoConfig() {
   cpmSensorPayload["device"] = device.as<JsonObject>();
   cpmSensorPayload["availability_topic"] = MQTT_TOPIC_AVAILABILITY;
   cpmSensorPayload["state_topic"] = MQTT_TOPIC_CPM;
-  cpmSensorPayload["name"] = identifier + String(" CPM");
+  cpmSensorPayload["name"] = "CPM";
   cpmSensorPayload["unit_of_measurement"] = "CPM";
+  cpmSensorPayload["state_class"] = "measurement";
   cpmSensorPayload["unique_id"] = identifier + String("_cpm");
 
   serializeJson(cpmSensorPayload, mqttPayload);
@@ -196,8 +197,9 @@ void publishAutoConfig() {
   usvSensorPayload["device"] = device.as<JsonObject>();
   usvSensorPayload["availability_topic"] = MQTT_TOPIC_AVAILABILITY;
   usvSensorPayload["state_topic"] = MQTT_TOPIC_USV;
-  usvSensorPayload["name"] = identifier + String(" uSv");
+  usvSensorPayload["name"] = "uSv";
   usvSensorPayload["unit_of_measurement"] = "µSv/h";
+  usvSensorPayload["state_class"] = "measurement";
   usvSensorPayload["unique_id"] = identifier + String("_uSv");
 
   serializeJson(usvSensorPayload, mqttPayload);
